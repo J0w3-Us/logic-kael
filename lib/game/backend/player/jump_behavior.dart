@@ -9,7 +9,6 @@ class JumpBehavior {
   // Parámetros ajustables
   final double gravity;
   final double jumpSpeed;
-  final double holdJumpGravityMultiplier;
   final double shortHopMultiplier;
   final double coyoteTimeMax;
   final double jumpBufferMax;
@@ -17,26 +16,38 @@ class JumpBehavior {
   // Estados internos
   double _coyoteTimer = 0.0;
   double _jumpBufferTimer = 0.0;
-  bool _jumpHeld = false;
+  // Note: we no longer use a "hold to jump" mechanic. Jumps are single-click.
 
   JumpBehavior(
     this.velocity, {
     this.gravity = 900,
     this.jumpSpeed = -420,
-    this.holdJumpGravityMultiplier = 0.6,
     this.shortHopMultiplier = 0.5,
     this.coyoteTimeMax = 0.12,
     this.jumpBufferMax = 0.12,
   });
 
   void pressJump() {
+    // Backwards-compatible: pressing still buffers the jump if called
+    // without context. Prefer calling `attemptJump(owner, groundY)` to
+    // make the jump happen immediately when possible.
     _jumpBufferTimer = jumpBufferMax;
   }
 
   void releaseJump() {
-    _jumpHeld = false;
-    if (velocity.y < 0) {
-      velocity.y = velocity.y * shortHopMultiplier;
+    // No-op for single-click jump behavior (disable hold-to-jump).
+  }
+
+  /// Try to make the player jump immediately if on ground or within coyote time.
+  /// If not possible, buffer the jump so it triggers when the player lands.
+  void attemptJump(PositionComponent owner, double groundY) {
+    final bool onGround = owner.position.y + owner.size.y >= groundY;
+    if (onGround || _coyoteTimer > 0) {
+      velocity.y = jumpSpeed;
+      _jumpBufferTimer = 0.0;
+      _coyoteTimer = 0.0;
+    } else {
+      _jumpBufferTimer = jumpBufferMax;
     }
   }
 
@@ -44,10 +55,8 @@ class JumpBehavior {
   /// `owner` y `groundY` se pasan desde Player para detectar suelo.
   void updateVertical(double dt, PositionComponent owner, double groundY) {
     // aplicar gravedad variable (más clara y con llaves)
-    final double gravityToApply = (velocity.y < 0 && _jumpHeld)
-        ? gravity * holdJumpGravityMultiplier
-        : gravity;
-    velocity.y += gravityToApply * dt;
+    // Always apply the same gravity; no hold-to-extend-jump behaviour.
+    velocity.y += gravity * dt;
 
     // NOTA: no movemos owner.position aquí; Player hará position += velocity * dt
 
@@ -67,11 +76,10 @@ class JumpBehavior {
     }
 
     if (_jumpBufferTimer > 0 && _coyoteTimer > 0) {
-      // ejecutar salto
+      // execute buffered jump
       velocity.y = jumpSpeed;
       _jumpBufferTimer = 0.0;
       _coyoteTimer = 0.0;
-      _jumpHeld = true;
     }
   }
 }

@@ -231,8 +231,19 @@ class Player extends SpriteAnimationGroupComponent<PlayerState>
     }
   }
 
-  void pressJump() => jumpBehavior.pressJump();
+  void pressJump() {
+    // Compute groundY from the gameRef so the jump can be attempted
+    if (gameRef is GameApi) {
+      final GameApi gr = gameRef as GameApi;
+      final double groundY = gr.size.y - gr.groundHeight;
+      jumpBehavior.attemptJump(this, groundY);
+    } else {
+      jumpBehavior.pressJump();
+    }
+  }
+
   void releaseJump() => jumpBehavior.releaseJump();
+
   void jump() => pressJump();
 
   @override
